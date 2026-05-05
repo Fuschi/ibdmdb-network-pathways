@@ -1,0 +1,348 @@
+---
+title: "Preparation of IBDMDB sequencing metadata"
+subtitle: "Integration of ENA and NCBI SRA run-level metadata for metagenomic network and pathway analyses"
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    number-sections: true
+editor: source
+---
+
+# Aim of the notebook
+
+This notebook prepares the sequencing metadata used for the analysis of the
+Inflammatory Bowel Disease Multi'omics Database (IBDMDB) dataset.
+
+The main goal is to build a clean and consistent run-level metadata table by
+integrating information retrieved from two complementary public resources:
+
+1. the ENA read-run file report for BioProject `PRJNA398089`;
+2. the NCBI SRA Run Selector table for the same BioProject.
+
+The resulting table will be used to select the subset of samples relevant for
+the downstream metagenomic analyses, with particular focus on shotgun
+metagenomic data suitable for microbial community, network, and pathway-based
+analyses.
+
+# Data sources
+
+The starting metadata files are:
+
+- `filereport_read_run_PRJNA398089.tsv`, downloaded from the ENA Portal API;
+- `SraRunTable_PRJNA398089.csv`, downloaded from the NCBI SRA Run Selector.
+
+Both files describe sequencing runs associated with the IBDMDB/iHMP study, but
+they contain partially overlapping and partially complementary information.
+For this reason, they are first standardized and compared, and then joined into
+a single metadata table.
+
+# General workflow
+
+The notebook follows these steps:
+
+1. load the ENA and SRA metadata tables;
+2. standardize column names from the SRA table;
+3. harmonize key identifiers and technical fields across the two sources;
+4. check consistency of run accessions and shared columns;
+5. merge ENA and SRA metadata into a single table;
+6. clean selected clinical and technical variables;
+7. filter the metadata to retain the samples suitable for the downstream
+   metagenomic analysis.
+
+```{r setup, message=FALSE, warning=FALSE}
+# Load packages used for data manipulation and metadata cleaning.
+library(tidyverse)
+library(janitor)
+```
+
+```{r, message=FALSE, warning=FALSE}
+report_ena <- read_tsv("../raw/filereport_read_run_PRJNA398089.tsv") %>%
+  rename(center_code = center_name)
+metadata_sra <- read_csv("../raw/SraRunTable_PRJNA398089.csv")
+```
+
+```{r}
+colnames(report_ena)
+```
+
+```{r, message=FALSE}
+metadata_sra_std <- metadata_sra %>%
+  janitor::clean_names()
+colnames(metadata_sra_std)
+```
+
+```{r}
+metadata_sra_std <- metadata_sra_std %>%
+  rename(
+    run_accession = run,
+    library_strategy = assay_type,
+    base_count = bases,
+    study_accession = bio_project,
+    sample_accession = bio_sample,
+    experiment_accession = experiment,
+    instrument_model = instrument,
+    library_layout = library_layout,
+    library_source = library_source,
+    center_name = center_name,
+    sample_alias = sample_name,
+    study_accession_sra = sra_study,
+    scientific_name = organism,
+    instrument_platform = platform
+  )
+```
+
+```{r}
+all(report_ena$run_accession %in% metadata_sra_std$run_accession)
+all(metadata_sra_std$run_accession %in% report_ena$run_accession)
+
+report_ena |>
+  count(run_accession) |>
+  filter(n > 1)
+
+metadata_sra_std |>
+  count(run_accession) |>
+  filter(n > 1)
+```
+
+## Check consistency of shared columns
+
+After harmonizing the main column names, the two metadata tables are compared
+using the columns they have in common.
+
+```{r}
+shared_columns <- intersect(colnames(report_ena), colnames(metadata_sra_std))
+```
+
+```{r}
+report_ena_check <- report_ena %>%
+  arrange(run_accession) %>%
+  select(all_of(shared_columns))
+
+metadata_sra_std_check <-  metadata_sra_std %>%
+            arrange(run_accession) %>%
+            select(all_of(shared_columns))
+```
+
+```{r}
+identical(report_ena_check, metadata_sra_std_check)
+```
+
+## Join ENA and SRA metadata
+
+The ENA and SRA tables are joined using the run accession and the main shared
+technical identifiers.
+
+```{r}
+metadata_join <- report_ena %>%
+  left_join(metadata_sra_std, 
+            by = join_by(run_accession, study_accession, sample_accession, 
+                         experiment_accession, scientific_name,
+                         instrument_platform, instrument_model, library_layout,
+                         library_strategy, library_source, base_count, sample_alias))
+```
+
+# Reorder metadata columns
+
+The joined metadata table is reorganized to make it easier to inspect and use.
+Columns are grouped into conceptual blocks:
+
+- main sequencing and sample identifiers;
+- subject-level and clinical information;
+- biological and environmental sample descriptors;
+- library and sequencing information;
+- sequencing magnitude and file size;
+- FASTQ download information;
+- release, storage, and provenance metadata.
+
+```{r}
+metadata_join <- metadata_join %>%
+  relocate(
+    # main IDs
+    run_accession,
+    sample_alias,
+    external_sample_id,
+    sample_accession,
+    experiment_accession,
+    study_accession,
+    study_accession_sra,
+
+    # subject/clinical info
+    host_subject_id,
+    host_disease,
+    host_sex,
+    host_age,
+    visit_num,
+    replicate,
+    collection_date,
+    consent,
+
+    # bioinformatic/technical sample info
+    scientific_name,
+    tax_id,
+    host,
+    isolation_source,
+    geo_loc_name,
+    geo_loc_name_country,
+    geo_loc_name_country_continent,
+    lat_lon,
+    env_biome,
+    env_feature,
+    env_material,
+
+    # library and sequencing
+    library_strategy,
+    library_layout,
+    library_source,
+    library_selection,
+    library_name,
+    instrument_platform,
+    instrument_model,
+    center_name,
+    center_code,
+    experiment_title,
+
+    # magnitude
+    read_count,
+    base_count,
+    avg_spot_len,
+    bytes,
+    fastq_bytes,
+
+    # Download
+    fastq_ftp,
+    fastq_md5,
+
+    # date / storage
+    release_date,
+    create_date,
+    datastore_filetype,
+    datastore_provider,
+    datastore_region,
+    bio_sample_model,
+    version
+  )
+```
+
+# Standardize disease labels
+
+Disease labels are harmonized to obtain a consistent set of values across the
+metadata table.
+
+The original metadata contain different representations of the same condition,
+such as abbreviations and full names. These values are converted to compact
+snake-case labels that are easier to use in downstream analyses.
+
+```{r}
+metadata_join <- metadata_join %>% 
+  mutate(
+    host_disease = if_else(is.na(host_disease), "missing", host_disease),
+    host_disease = str_to_lower(host_disease),
+    host_disease = case_when(
+      host_disease %in% c("cd", "crohn''s disease", "crohn's disease", "crohn’s disease") ~ "crohns_disease",
+      host_disease %in% c("uc", "ulcerative colitis") ~ "ulcerative_colitis",
+      host_disease %in% c("nonibd", "non-ibd") ~ "control",
+      TRUE ~ host_disease
+    ))
+```
+
+```{r}
+metadata_join %>%
+  count(host_disease, sort = TRUE)
+```
+# Select shotgun metagenomic sequencing runs
+
+The full metadata table contains multiple assay types, including shotgun
+metagenomic, metatranscriptomic, viral metagenomic, and amplicon sequencing
+data.
+
+For the main downstream analysis, only shotgun metagenomic runs from human gut
+metagenome samples are retained.
+
+Before filtering, the available combinations of library strategy, scientific
+name, library selection, and library source are summarized.
+
+```{r}
+metadata_join %>%
+  count(library_strategy, scientific_name, library_selection, library_source, sort = TRUE)
+```
+
+```{r}
+metadata_join_filt <- metadata_join %>%
+  filter(library_strategy == "WGS",
+         scientific_name == "human gut metagenome",
+         library_selection == "RANDOM",
+         library_source == "METAGENOMIC")
+```
+
+## Inspect missing disease labels at subject level
+
+Disease status should be consistent within each subject. Therefore, subjects
+with multiple disease labels are inspected.
+
+In particular, this step checks whether any subject has both a missing disease
+label and a non-control disease label. Such cases require manual inspection
+before assigning missing values to the control group.
+
+```{r}
+metadata_join_filt %>%
+  group_by(host_subject_id, host_disease) %>%
+  count() %>%
+  ungroup() %>%
+  group_by(host_subject_id) %>%
+  filter(n() > 1) %>%
+  arrange(host_subject_id) %>%
+  group_by(host_subject_id) %>%
+  filter(
+    any(host_disease == "missing"),
+    !any(host_disease == "control"))
+```
+
+## Build the final metadata table
+
+The final metadata table is generated by applying a set of inclusion criteria
+for the downstream analysis.
+
+The filtering steps are:
+
+1. remove the subject/run combination with ambiguous missing disease annotation;
+2. retain adult subjects only;
+3. convert the remaining missing disease annotations to `control`;
+4. retain subjects with at least 10 metagenomic sequencing runs.
+
+The last criterion is useful for longitudinal or repeated-measure analyses,
+where subjects with too few observations may not provide enough information to 
+reconstruct the correlation network.
+
+```{r}
+metadata_join_final <- metadata_join_filt %>%
+  filter(!(host_subject_id == 4004 & host_disease == "missing")) %>%
+  filter(host_age >= 18) %>%
+  mutate(host_disease = if_else(host_disease == "missing", "control", host_disease)) %>%
+  group_by(host_subject_id) %>%
+  filter(n() >= 10) %>%
+  ungroup() 
+```
+
+```{r}
+metadata_join_final %>%
+  summarise(
+    n_runs = n(),
+    n_subjects = n_distinct(host_subject_id),
+    .by = host_disease
+  ) %>%
+  arrange(desc(n_runs))
+```
+
+
+```{r}
+metadata_join_final %>%
+  group_by(host_subject_id, host_disease) %>%
+  count() %>%
+  arrange(desc(n))
+```
+
+```{r}
+write_tsv(metadata_join_final, "../processed/ibdmdb_metadata_runs_mgx.tsv")
+```
+
