@@ -47,3 +47,13 @@ po/*~
 
 # RStudio Connect folder
 rsconnect/
+
+# Quarto generated support files
+*_files/
+
+# Snakemake internal files
+.snakemake/
+
+# Workflow working directory: heavy files generated or downloaded by Snakemake
+workflow/work/*
+!workflow/work/.gitkeep
