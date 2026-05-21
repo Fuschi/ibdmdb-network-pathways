@@ -1,1 +1,32 @@
-TO DO
+import pandas as pd
+
+
+# -----------------------------------------------------------------------------
+# Setup
+# -----------------------------------------------------------------------------
+
+configfile: "workflow/config/config.yaml"
+
+metadata = pd.read_csv(config["metadata"], sep="\t", dtype=str)
+
+RUNS = metadata["run_accession"].tolist()
+WORK = "workflow/work"
+
+CONTAINERS = config["containers"]
+
+
+# -----------------------------------------------------------------------------
+# Target rule
+# -----------------------------------------------------------------------------
+
+rule all:
+    input:
+        expand(WORK + "/qc/raw/seqkit/{run}_R{mate}.tsv", run=RUNS, mate=["1", "2"])
+
+
+# -----------------------------------------------------------------------------
+# Rules
+# -----------------------------------------------------------------------------
+
+include: "rules/download.smk"
+include: "rules/raw_qc.smk"

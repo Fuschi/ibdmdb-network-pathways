@@ -1,0 +1,27 @@
+executor: slurm
+jobs: 10
+
+printshellcmds: true
+verbose: false
+latency-wait: 60
+max-jobs-per-second: 5
+jobname: "smk-{rulename}-{jobid}"
+
+software-deployment-method: ["apptainer"]
+apptainer-args: >-
+  --bind /home/PERSONALE/alessandro.fuschi2:/home/PERSONALE/alessandro.fuschi2
+  --bind /scratch:/scratch
+  --bind /archive:/archive
+  --cleanenv
+
+default-resources:
+  - slurm_account=applicata
+  - slurm_qos=normal
+  - cpus_per_task=1
+  - tasks=1
+  - runtime=30
+  - mem_mb=2000
+  - slurm_requeue=false
+
+slurm-logdir: "workflow/work/logs/slurm"
+slurm-keep-successful-logs: true
