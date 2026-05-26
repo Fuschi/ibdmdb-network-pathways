@@ -21,7 +21,7 @@ CONTAINERS = config["containers"]
 
 rule all:
     input:
-        expand(WORK + "/qc/raw/seqkit/{run}_R{mate}.tsv", run=RUNS, mate=["1", "2"])
+        "results/raw_paired_seqkit_stats.tsv"
 
 
 # -----------------------------------------------------------------------------
