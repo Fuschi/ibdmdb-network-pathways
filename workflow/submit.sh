@@ -2,14 +2,13 @@
 #SBATCH --job-name=snakemake
 #SBATCH --account=applicata
 #SBATCH --qos=normal
-#SBATCH --constraint=blade
-#SBATCH --ntasks=1
 #SBATCH --nodes=1
 #SBATCH --mem=12G
 #SBATCH --time=16:00:00
-#SBATCH --cpus-per-task=1
+#SBATCH --cpus-per-task=2
 #SBATCH --output=workflow/work/logs/controller/%x_%j.out
 #SBATCH --error=workflow/work/logs/controller/%x_%j.err
+#SBATCH --constraint=blade
 
 set -euo pipefail
 
