@@ -3,3 +3,7 @@ metadata: "data/metadata_ena_sra/processed/ibdmdb_metadata_runs_mgx.tsv"
 containers:
   seqkit: "/home/PERSONALE/alessandro.fuschi2/containers/seqkit/2.13.0/seqkit_2.13.0.sif"
   r_postprocess: "/home/PERSONALE/alessandro.fuschi2/containers/r-postprocess/r-postprocess.sif"
+  kneaddata: "/home/PERSONALE/alessandro.fuschi2/containers/kneaddata/0.12.4/kneaddata_0.12.4.sif"
+
+references:
+  human_kneaddata: "/archive/extra/daniel.remondini2/bioinf_db/databases/kneaddata_human_hg39_T2T_bowtie2_v0.1/database"

@@ -13,7 +13,7 @@ RUNS = metadata["run_accession"].tolist()
 WORK = "workflow/work"
 
 CONTAINERS = config["containers"]
-
+REFERENCES = config["references"]
 
 # -----------------------------------------------------------------------------
 # Target rule
@@ -30,3 +30,5 @@ rule all:
 
 include: "rules/download.smk"
 include: "rules/raw_qc.smk"
+include: "rules/kneaddata.smk"
+
