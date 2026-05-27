@@ -8,25 +8,28 @@ rule clean_reads_kneaddata:
         r2 = WORK + "/raw/{run}_R2.fastq.gz"
     output:
         r1 = WORK + "/clean/{run}_R1.fastq.gz",
-        r2 = WORK + "/clean/{run}_R2.fastq.gz"
+        r2 = WORK + "/clean/{run}_R2.fastq.gz",
+        unmatched = WORK + "/clean/{run}_unmatched.tar.gz",
+        contam = WORK + "/clean/{run}_human_contam.tar.gz"
     params:
-        clean = WORK + "/clean/kneaddata",
+        clean = WORK + "/clean",
         scratch = WORK + "/clean/tmp_{run}",
         db = REFERENCES["human_kneaddata"],
         prefix = "{run}"
     log:
-        WORK + "/logs/clean/kneaddata/{run}.log"
+        WORK + "/logs/clean/{run}.log"
     benchmark:
-        WORK + "/benchmarks/clean/kneaddata/{run}.tsv"
+        WORK + "/benchmarks/clean/{run}.tsv"
     threads: 4
     resources:
+        cpus_per_task = 4,
         mem_mb = 16000,
         runtime = 240
     container:
         CONTAINERS["kneaddata"]
     shell:
         """
-        mkdir -p {params.clean} {params.scratch}
+        mkdir -p {params.scratch}
 
         kneaddata \
             --input1 {input.r1} \
@@ -48,6 +51,20 @@ rule clean_reads_kneaddata:
         mv {params.clean}/{wildcards.run}_paired_1.fastq.gz {output.r1}
         mv {params.clean}/{wildcards.run}_paired_2.fastq.gz {output.r2}
 
+        tar -czf {output.unmatched} \
+            -C {params.clean} \
+            {wildcards.run}_unmatched_1.fastq \
+            {wildcards.run}_unmatched_2.fastq
+
+        tar -czf {output.contam} \
+            -C {params.clean} \
+            {wildcards.run}_hg_39_bowtie2_paired_contam_1.fastq \
+            {wildcards.run}_hg_39_bowtie2_paired_contam_2.fastq \
+            {wildcards.run}_hg_39_bowtie2_unmatched_1_contam.fastq \
+            {wildcards.run}_hg_39_bowtie2_unmatched_2_contam.fastq
+
+        rm -f {params.clean}/{wildcards.run}_unmatched_1.fastq
+        rm -f {params.clean}/{wildcards.run}_unmatched_2.fastq
+        rm -f {params.clean}/{wildcards.run}_hg_39_bowtie2_*contam*.fastq
         rm -rf {params.scratch}
         """
-
