@@ -4,7 +4,7 @@
 #SBATCH --qos=normal
 #SBATCH --nodes=1
 #SBATCH --mem=12G
-#SBATCH --time=16:00:00
+#SBATCH --time=24:00:00
 #SBATCH --cpus-per-task=2
 #SBATCH --output=workflow/work/logs/controller/%x_%j.out
 #SBATCH --error=workflow/work/logs/controller/%x_%j.err
