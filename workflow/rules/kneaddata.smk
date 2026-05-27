@@ -20,16 +20,16 @@ rule clean_reads_kneaddata:
         WORK + "/logs/clean/{run}.log"
     benchmark:
         WORK + "/benchmarks/clean/{run}.tsv"
-    threads: 4
+    threads: 8
     resources:
-        cpus_per_task = 4,
-        mem_mb = 16000,
+        cpus_per_task = 8,
+        mem_mb = 32000,
         runtime = 240
     container:
         CONTAINERS["kneaddata"]
     shell:
         """
-        mkdir -p {params.scratch}
+        mkdir -p {params.clean} {params.scratch}
 
         kneaddata \
             --input1 {input.r1} \
@@ -57,14 +57,14 @@ rule clean_reads_kneaddata:
             {wildcards.run}_unmatched_2.fastq
 
         tar -czf {output.contam} \
-            -C {params.clean} \
-            {wildcards.run}_hg_39_bowtie2_paired_contam_1.fastq \
-            {wildcards.run}_hg_39_bowtie2_paired_contam_2.fastq \
-            {wildcards.run}_hg_39_bowtie2_unmatched_1_contam.fastq \
-            {wildcards.run}_hg_39_bowtie2_unmatched_2_contam.fastq
+            -C {params.scratch} \
+            {wildcards.run}_*_bowtie2_paired_contam_1.fastq \
+            {wildcards.run}_*_bowtie2_paired_contam_2.fastq \
+            {wildcards.run}_*_bowtie2_unmatched_1_contam.fastq \
+            {wildcards.run}_*_bowtie2_unmatched_2_contam.fastq
 
         rm -f {params.clean}/{wildcards.run}_unmatched_1.fastq
         rm -f {params.clean}/{wildcards.run}_unmatched_2.fastq
-        rm -f {params.clean}/{wildcards.run}_hg_39_bowtie2_*contam*.fastq
         rm -rf {params.scratch}
         """
+
