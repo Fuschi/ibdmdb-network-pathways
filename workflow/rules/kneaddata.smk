@@ -14,8 +14,7 @@ rule clean_reads_kneaddata:
     params:
         clean = WORK + "/clean",
         scratch = WORK + "/clean/tmp_{run}",
-        db = REFERENCES["human_kneaddata"],
-        prefix = "{run}"
+        db = "/archive/extra/daniel.remondini2/bioinf_db/databases/kneaddata_human_hg39_T2T_bowtie2_v0.1/database"
     log:
         WORK + "/logs/clean/{run}.log"
     benchmark:
@@ -37,11 +36,10 @@ rule clean_reads_kneaddata:
             --reference-db {params.db} \
             --output {params.clean} \
             --scratch {params.scratch} \
-            --output-prefix {params.prefix} \
+            --output-prefix {wildcards.run} \
             --sequencer-source NexteraPE \
             --quality-scores phred33 \
             --threads {threads} \
-            --remove-intermediate-output \
             --log-level INFO \
             --log {log}
 
@@ -58,10 +56,10 @@ rule clean_reads_kneaddata:
 
         tar -czf {output.contam} \
             -C {params.scratch} \
-            {wildcards.run}_*_bowtie2_paired_contam_1.fastq \
-            {wildcards.run}_*_bowtie2_paired_contam_2.fastq \
-            {wildcards.run}_*_bowtie2_unmatched_1_contam.fastq \
-            {wildcards.run}_*_bowtie2_unmatched_2_contam.fastq
+            {wildcards.run}_hg_39_bowtie2_paired_contam_1.fastq \
+            {wildcards.run}_hg_39_bowtie2_paired_contam_2.fastq \
+            {wildcards.run}_hg_39_bowtie2_unmatched_1_contam.fastq \
+            {wildcards.run}_hg_39_bowtie2_unmatched_2_contam.fastq
 
         rm -f {params.clean}/{wildcards.run}_unmatched_1.fastq
         rm -f {params.clean}/{wildcards.run}_unmatched_2.fastq
