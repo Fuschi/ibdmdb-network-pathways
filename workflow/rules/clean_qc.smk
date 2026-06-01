@@ -55,4 +55,29 @@ rule aggregate_clean_seqkit_stats:
             > {log} 2>&1
         """
 
+# -----------------------------------------------------------------------------
+# Aggregate KneadData log statistics
+# -----------------------------------------------------------------------------
+
+rule aggregate_kneaddata_logs:
+    input:
+        expand(WORK + "/logs/clean/{run}.log", run=RUNS)
+    output:
+        "results/kneaddata_summary.tsv"
+    log:
+        WORK + "/logs/clean/kneaddata_summary.log"
+    benchmark:
+        WORK + "/benchmarks/clean/kneaddata_summary.tsv"
+    resources:
+        mem_mb = 2000,
+        runtime = 30
+    container:
+        CONTAINERS["r_postprocess"]
+    shell:
+        """
+        Rscript workflow/script/summarise_kneaddata_logs.R \
+            --input-dir workflow/work/logs/clean \
+            --output {output} \
+            > {log} 2>&1
+        """
 

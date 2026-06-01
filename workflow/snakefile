@@ -21,12 +21,8 @@ REFERENCES = config["references"]
 
 rule all:
     input:
-        "results/raw_paired_seqkit_stats.tsv",
-        expand(WORK + "/clean/{run}_{suffix}", run=RUNS, suffix=["R1.fastq.gz",
-                                                                 "R2.fastq.gz",
-                                                                 "unmatched.tar.gz",
-                                                                 "human_contam.tar.gz"])
-
+        "results/clean_paired_seqkit_stats.tsv",
+        "results/kneaddata_summary.tsv"
 
 # -----------------------------------------------------------------------------
 # Rules
@@ -35,4 +31,5 @@ rule all:
 include: "rules/download.smk"
 include: "rules/raw_qc.smk"
 include: "rules/kneaddata.smk"
-
+include: "rules/clean_qc.smk"
+include: "rules/metaphlan.smk"

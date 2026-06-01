@@ -30,10 +30,14 @@ if (!dir_exists(opt$input_dir)) stop("Input directory does not exist: ", opt$inp
 log_files <- dir_ls(opt$input_dir, regexp = "\\.log$")
 if (length(log_files) == 0) stop("No KneadData log files found in: ", opt$input_dir)
 
-extract_count <- function(lines, file_pattern) {
-    hit <- lines[str_detect(lines, fixed(file_pattern))]
+extract_read_count <- function(lines, label) {
+    pattern <- paste0("READ COUNT: ", label, " :")
+    hit <- lines[str_detect(lines, fixed(pattern))]
+
     if (length(hit) == 0) return(NA_real_)
-    str_match(hit[1], ":\\s*([0-9]+\\.?[0-9]*)")[, 2] %>% as.numeric()
+
+    str_match(hit[1], "\\):\\s*([0-9]+\\.?[0-9]*)\\s*$")[, 2] %>%
+        as.numeric()
 }
 
 parse_log <- function(path) {
@@ -42,31 +46,31 @@ parse_log <- function(path) {
 
     tibble(
         run_accession = run,
-        initial_r1 = extract_count(lines, "_R1.fastq"),
-        initial_r2 = extract_count(lines, "_R2.fastq"),
-        trimmed_paired_r1 = extract_count(lines, paste0(run, ".trimmed.1.fastq")),
-        trimmed_paired_r2 = extract_count(lines, paste0(run, ".trimmed.2.fastq")),
-        trimmed_single_r1 = extract_count(lines, paste0(run, ".trimmed.single.1.fastq")),
-        trimmed_single_r2 = extract_count(lines, paste0(run, ".trimmed.single.2.fastq")),
-        clean_paired_r1 = extract_count(lines, paste0(run, "_paired_1.fastq")),
-        clean_paired_r2 = extract_count(lines, paste0(run, "_paired_2.fastq")),
-        clean_unmatched_r1 = extract_count(lines, paste0(run, "_unmatched_1.fastq")),
-        clean_unmatched_r2 = extract_count(lines, paste0(run, "_unmatched_2.fastq"))
+        raw_pair1 = extract_read_count(lines, "raw pair1"),
+        raw_pair2 = extract_read_count(lines, "raw pair2"),
+        trimmed_pair1 = extract_read_count(lines, "trimmed pair1"),
+        trimmed_pair2 = extract_read_count(lines, "trimmed pair2"),
+        trimmed_orphan1 = extract_read_count(lines, "trimmed orphan1"),
+        trimmed_orphan2 = extract_read_count(lines, "trimmed orphan2"),
+        final_pair1 = extract_read_count(lines, "final pair1"),
+        final_pair2 = extract_read_count(lines, "final pair2"),
+        final_orphan1 = extract_read_count(lines, "final orphan1"),
+        final_orphan2 = extract_read_count(lines, "final orphan2")
     )
 }
 
 kneaddata_summary <- map_dfr(log_files, parse_log) %>%
     mutate(
-        raw_pairs = pmin(initial_r1, initial_r2, na.rm = TRUE),
-        trimmed_pairs = pmin(trimmed_paired_r1, trimmed_paired_r2, na.rm = TRUE),
-        clean_pairs = pmin(clean_paired_r1, clean_paired_r2, na.rm = TRUE),
-        trimmed_singletons = trimmed_single_r1 + trimmed_single_r2,
-        clean_singletons = clean_unmatched_r1 + clean_unmatched_r2,
+        raw_pairs = pmin(raw_pair1, raw_pair2, na.rm = TRUE),
+        trimmed_pairs = pmin(trimmed_pair1, trimmed_pair2, na.rm = TRUE),
+        clean_pairs = pmin(final_pair1, final_pair2, na.rm = TRUE),
+        trimmed_singletons = coalesce(trimmed_orphan1, 0) + coalesce(trimmed_orphan2, 0),
+        clean_singletons = coalesce(final_orphan1, 0) + coalesce(final_orphan2, 0),
         pairs_removed_by_trim = raw_pairs - trimmed_pairs,
-        pairs_removed_by_host = trimmed_pairs - clean_pairs,
+        pairs_removed_after_trim = trimmed_pairs - clean_pairs,
         pairs_removed_total = raw_pairs - clean_pairs,
         pct_pairs_removed_by_trim = 100 * pairs_removed_by_trim / raw_pairs,
-        pct_pairs_removed_by_host = 100 * pairs_removed_by_host / trimmed_pairs,
+        pct_pairs_removed_after_trim = 100 * pairs_removed_after_trim / trimmed_pairs,
         pct_pairs_retained_final = 100 * clean_pairs / raw_pairs
     ) %>%
     arrange(run_accession)

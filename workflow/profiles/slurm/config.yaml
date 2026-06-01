@@ -1,5 +1,6 @@
 executor: slurm
 jobs: 7
+cores: 84
 
 printshellcmds: true
 verbose: false
