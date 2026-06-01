@@ -16,8 +16,8 @@ rule profile_metaphlan:
     threads: 12
     resources:
         cpus_per_task = 12,
-        mem_mb = 24000,
-        runtime = 240
+        mem_mb = 32000,
+        runtime = 120
     container:
         CONTAINERS["metaphlan"]
     params:

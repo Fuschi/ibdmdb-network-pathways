@@ -22,7 +22,8 @@ REFERENCES = config["references"]
 rule all:
     input:
         "results/clean_paired_seqkit_stats.tsv",
-        "results/kneaddata_summary.tsv"
+        "results/kneaddata_summary.tsv",
+        expand("workflow/work/metaphlan/{run}.metaphlan.tsv", run=RUNS)
 
 # -----------------------------------------------------------------------------
 # Rules
