@@ -19,10 +19,10 @@ rule clean_reads_kneaddata:
         WORK + "/logs/clean/{run}.log"
     benchmark:
         WORK + "/benchmarks/clean/{run}.tsv"
-    threads: 8
+    threads: 12
     resources:
-        cpus_per_task = 8,
-        mem_mb = 32000,
+        cpus_per_task = 12,
+        mem_mb = 16000,
         runtime = 240
     container:
         CONTAINERS["kneaddata"]
