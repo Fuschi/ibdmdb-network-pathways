@@ -21,11 +21,11 @@ REFERENCES = config["references"]
 
 rule all:
     input:
+        "results/raw_paired_seqkit_stats.tsv",
         expand(WORK + "/clean/{run}_{suffix}", run=RUNS, suffix=["R1.fastq.gz",
                                                                  "R2.fastq.gz",
                                                                  "unmatched.tar.gz",
                                                                  "human_contam.tar.gz"])
-        #"results/raw_paired_seqkit_stats.tsv"
 
 
 # -----------------------------------------------------------------------------
