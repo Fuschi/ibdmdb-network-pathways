@@ -1,11 +1,12 @@
 executor: slurm
-jobs: 30
+jobs: 7
 
 printshellcmds: true
 verbose: false
 latency-wait: 60
 max-jobs-per-second: 5
-jobname: "smk-{rulename}-{jobid}"
+keep-going: true
+show-failed-logs: true
 
 software-deployment-method: ["apptainer"]
 apptainer-args: >-
@@ -22,5 +23,6 @@ default-resources:
   - mem_mb=2000
   - slurm_requeue=false
 
+slurm-jobname-prefix: "smk-ibdmdb"
 slurm-logdir: "workflow/work/logs/slurm"
 slurm-keep-successful-logs: false
