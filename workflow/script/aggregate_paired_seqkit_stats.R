@@ -133,6 +133,7 @@ if (has_cols(seqkit_wide, c("n50_num_r1", "n50_num_r2"))) {
 }
 
 seqkit_wide <- seqkit_wide %>%
+  arrange(run_accession) %>%
   relocate(any_of(c("run_accession", "paired_reads_match", "num_read_pairs_r12", "num_seqs_r12", "sum_len_r12",
                     "avg_len_r12", "min_len_r12", "max_len_r12", "gc_percent_r12", "q20_percent_r12",
                     "q30_percent_r12", "avg_qual_r12", "sum_n_r12", "sum_gap_r12")))
