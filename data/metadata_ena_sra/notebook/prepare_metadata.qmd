@@ -275,6 +275,19 @@ metadata_join_filt <- metadata_join %>%
          library_source == "METAGENOMIC")
 ```
 
+```{r}
+metadata_join_filt %>%
+  arrange(read_count) %>%
+  select(run_accession, host_subject_id, host_disease, read_count, base_count, avg_spot_len) %>%
+  print(n = 20)
+```
+
+```{r}
+metadata_join_filt <- metadata_join_filt %>%
+  filter(read_count >= 1e5)
+```
+
+
 ## Inspect missing disease labels at subject level
 
 Disease status should be consistent within each subject. Therefore, subjects
@@ -339,8 +352,17 @@ metadata_join_final %>%
 metadata_join_final %>%
   group_by(host_subject_id, host_disease) %>%
   count() %>%
-  arrange(desc(n))
+  arrange(n)
 ```
+
+```{r}
+metadata_join_final %>%
+  distinct(host_subject_id, host_disease) %>%
+  group_by(host_subject_id, host_disease) %>%
+  count() %>%
+  arrange(n)
+```
+
 
 ```{r}
 write_tsv(metadata_join_final, "../processed/ibdmdb_metadata_runs_mgx.tsv")
