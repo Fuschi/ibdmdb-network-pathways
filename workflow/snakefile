@@ -23,7 +23,8 @@ rule all:
     input:
         "results/clean_paired_seqkit_stats.tsv",
         "results/kneaddata_summary.tsv",
-        expand("workflow/work/metaphlan/{run}.metaphlan.tsv", run=RUNS)
+        "results/metaphlan/metaphlan_species_abundance_matrix.tsv",
+        "results/metaphlan/metaphlan_species_taxonomy_matrix.tsv"
 
 # -----------------------------------------------------------------------------
 # Rules
