@@ -49,7 +49,7 @@ rule aggregate_raw_seqkit_stats:
         CONTAINERS["r_postprocess"]
     shell:
         """
-        Rscript workflow/script/aggregate_paired_seqkit_stats.R \
+        Rscript workflow/scripts/aggregate_paired_seqkit_stats.R \
             --input-dir workflow/work/qc/raw/seqkit \
             --output {output} \
             > {log} 2>&1

@@ -49,7 +49,7 @@ rule aggregate_clean_seqkit_stats:
         CONTAINERS["r_postprocess"]
     shell:
         """
-        Rscript workflow/script/aggregate_paired_seqkit_stats.R \
+        Rscript workflow/scripts/aggregate_paired_seqkit_stats.R \
             --input-dir workflow/work/qc/clean/seqkit \
             --output {output} \
             > {log} 2>&1
@@ -75,7 +75,7 @@ rule aggregate_kneaddata_logs:
         CONTAINERS["r_postprocess"]
     shell:
         """
-        Rscript workflow/script/summarise_kneaddata_logs.R \
+        Rscript workflow/scripts/summarise_kneaddata_logs.R \
             --input-dir workflow/work/logs/clean \
             --output {output} \
             > {log} 2>&1
