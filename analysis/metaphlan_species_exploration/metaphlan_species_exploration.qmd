@@ -1,0 +1,179 @@
+---
+title: "metaphlan_species_exploration"
+format: html
+editor: source
+---
+
+```{r, message=FALSE}
+library(tidyverse)
+library(mgnet)
+```
+
+```{r}
+ibdm <- mgnet(
+  
+  rela = read_tsv("../../results/metaphlan/metaphlan_species_abundance_matrix.tsv",
+                 show_col_types = FALSE) %>%
+    column_to_rownames("sample_id") %>%
+    as.matrix(),
+  
+  meta = read_tsv("../../data/metadata_ena_sra/processed/ibdmdb_metadata_runs_mgx.tsv",
+                   show_col_types = FALSE) %>%
+    select(run_accession, host_subject_id, host_disease,
+           host_sex, host_age, collection_date) %>%
+    left_join(read_tsv("../../results/kneaddata_summary.tsv",
+                       show_col_types = FALSE),
+              by = "run_accession") %>%
+    mutate(host_subject_id = as.factor(host_subject_id)) %>%
+    arrange(run_accession) %>%
+    column_to_rownames("run_accession"),
+  
+  taxa = read_tsv("../../results/metaphlan/metaphlan_species_taxonomy_matrix.tsv",
+                   show_col_types = FALSE) %>%
+    column_to_rownames("species"))
+```
+
+```{r, fig.width=15, fig.height=6}
+meta(ibdm, "tbl") %>%
+  mutate(sample_id = as.character(sample_id),
+         host_subject_id = as.character(host_subject_id),
+         sample_id = fct_reorder(sample_id, raw_pairs, .desc = TRUE)) %>%
+  rename(cleaned = clean_pairs,
+         trimmed_removed = pairs_removed_by_trim,
+         human_removed = pairs_removed_after_trim) %>%
+  select(sample_id, host_subject_id, host_disease, host_sex,
+    raw_pairs, cleaned, trimmed_removed, human_removed) %>%
+  pivot_longer(cols = c(cleaned, trimmed_removed, human_removed),
+               names_to = "read_class", values_to = "read_pairs") %>%
+  mutate(read_class = factor(read_class,
+                             levels = c("human_removed", "trimmed_removed", "cleaned"),
+                             labels = c("Human removed", "Removed by trimming", "Cleaned"))) %>%
+  ggplot(aes(x = sample_id, y = read_pairs, fill = read_class)) +
+  geom_col(width = .95) +
+  scale_y_continuous(labels = scales::label_number(scale_cut = scales::cut_short_scale())) +
+  scale_fill_brewer(palette = "Set1") +
+  theme_bw() +
+  labs(x = "Sample ID", y = "Raw read pairs", fill = "Read class") +
+  theme(axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        panel.grid.major.x = element_blank(),
+        legend.position = "top")
+```
+
+```{r}
+summary(pull_meta(ibdm, clean_pairs))
+ibdm <- filter_meta(ibdm, clean_pairs >= 1e6) 
+```
+
+
+```{r, fig.width=9, fig.height=3}
+ibdm %>%
+  meta("tbl") %>%
+  group_by(host_subject_id) %>%
+  mutate(mean_age = mean(host_age)) %>%
+  ungroup() %>%
+  mutate(host_subject_id = as.character(host_subject_id)) %>%
+  ggplot(aes(x = host_subject_id, color = host_sex, fill = host_disease)) +
+  geom_bar(linewidth = 1.1, width = 0.6) +
+  geom_text(aes(label = round(mean_age, 1)), stat = "count",
+            vjust = -0.3, size = 3, color = "black") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)) +
+  scale_color_manual(values = c("female" = "#0072B2", "male"   = "#D55E00")) +
+  scale_fill_manual(values = c(
+    "crohns_disease"     = "#F4A6A6", 0.65,
+    "ulcerative_colitis"     = "#A8DADC", 0.65,
+    "control" = "#CDEAC0", 0.65))
+
+```
+
+```{r}
+ibdm <- ibdm %>%
+  update_mgnet(norm = zCompositions::cmultRepl(rela, method = "CZM",
+                                               z.delete = F, z.warning = 1) %>%
+                 vegan::decostand(method = "clr"))
+```
+
+```{r}
+library(compositions)
+
+pca_clr <- prcomp(mgnet::norm(ibdm), center = TRUE, scale. = FALSE)
+```
+
+```{r, fig.width=10, fig.height=7}
+pca_clr$x[, 1:2] %>%
+  as_tibble(rownames = "sample_id") %>%
+  left_join(meta(ibdm, "tbl"), by = "sample_id") %>%
+  mutate(host_subject_id = as.factor(host_subject_id)) %>%
+  ggplot(aes(x = PC1, y = PC2, fill = host_subject_id)) +
+  geom_point(shape = 21, size = 3) +
+  theme_bw() +
+  ggqualpal::scale_fill_qualpal()
+```
+
+```{r}
+dist_adonis <- dist(mgnet::norm(ibdm))
+
+meta_adonis <-meta(ibdm, "tbl") %>%
+    mutate(sample_id = as.character(sample_id),
+           host_subject_id = factor(host_subject_id),
+           host_disease = factor(host_disease),
+           host_sex = factor(host_sex),
+           host_age = as.numeric(host_age))
+
+adonis_ibdm_subject <- vegan::adonis2(dist_adonis ~ host_subject_id,
+                                      data = meta_adonis,
+                                      permutations = 999)
+
+adonis_clinical <- vegan::adonis2(dist_adonis ~ host_disease + host_age + host_sex,
+                                data = meta_adonis,  
+                                permutations = 999)
+
+rm(dist_adonis, meta_adonis)
+```
+
+```{r}
+adonis_ibdm_subject
+
+adonis_clinical
+```
+
+```{r}
+vegan:::RsquareAdj.default(
+  x = adonis_ibdm_subject$R2[1],
+  n = adonis_ibdm_subject$Df[3] + 1,
+  m = adonis_ibdm_subject$Df[1])
+
+vegan:::RsquareAdj.default(
+  x = adonis_clinical$R2[1],
+  n = adonis_clinical$Df[3] + 1,
+  m = adonis_clinical$Df[1])
+```
+
+```{r}
+sub_ibdm <- ibdm %>%
+  mutate_meta(sample_sum = sum(rela)) %>%
+  split_meta(host_subject_id) %>%
+  filter_taxa((sum(rela > 0) / n()) >= .05,
+              any(rela >= .01)) %>%
+  mutate_meta(sample_lost = 1 - (sum(rela) / sample_sum)) %>%
+  update_mgnet(norm = zCompositions::cmultRepl(rela, method = "CZM",
+                                               z.delete = F, z.warning = 1) %>%
+                 vegan::decostand(method = "clr"))
+```
+
+```{r}
+sub_ibdm %>% pull_meta(sample_lost) %>% unlist() %>% max()
+```
+
+
+
+
+
+
+
+
+
+
+
+
