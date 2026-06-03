@@ -9,5 +9,5 @@ containers:
 references:
   human_kneaddata: "/archive/extra/daniel.remondini2/bioinf_db/databases/kneaddata_human_hg39_T2T_bowtie2_v0.1/database"
   metaphlan:
-    db_dir: "/archive/extra/daniel.remondini2/bioinf_db/metaphlan_mpa_vOct22_CHOCOPhlAnSGB_202403/database"
+    db_dir: "/archive/extra/daniel.remondini2/bioinf_db/databases/metaphlan_mpa_vOct22_CHOCOPhlAnSGB_202403/database"
     index: "mpa_vOct22_CHOCOPhlAnSGB_202403"
