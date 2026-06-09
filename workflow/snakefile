@@ -24,7 +24,8 @@ rule all:
         "results/clean_paired_seqkit_stats.tsv",
         "results/kneaddata_summary.tsv",
         "results/metaphlan/metaphlan_species_abundance_matrix.tsv",
-        "results/metaphlan/metaphlan_species_taxonomy_matrix.tsv"
+        "results/metaphlan/metaphlan_species_taxonomy_matrix.tsv",
+        "results/humann_metabolic_pathway_abundance_long.tsv"
 
 # -----------------------------------------------------------------------------
 # Rules
@@ -35,3 +36,4 @@ include: "rules/raw_qc.smk"
 include: "rules/kneaddata.smk"
 include: "rules/clean_qc.smk"
 include: "rules/metaphlan.smk"
+include: "rules/humann.smk"

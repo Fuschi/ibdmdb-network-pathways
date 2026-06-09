@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+
+if [[ "$1" == "--version" ]] || [[ "$1" == "-v" ]]; then
+    echo "MetaPhlAn version 4.2.4"
+    exit 0
+fi
+
+exec /opt/conda/bin/metaphlan "$@"

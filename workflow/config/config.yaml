@@ -5,9 +5,12 @@ containers:
   r_postprocess: "/home/PERSONALE/alessandro.fuschi2/containers/r-postprocess/r-postprocess.sif"
   kneaddata: "/home/PERSONALE/alessandro.fuschi2/containers/kneaddata/0.12.4/kneaddata_0.12.4.sif"
   metaphlan: "/home/PERSONALE/alessandro.fuschi2/containers/metaphlan/4.2.4/metaphlan_4.2.4.sif"
+  humann: "/archive/extra/daniel.remondini2/bioinf_db/databases/humann_4.0.0a1/container/humann_4.0.0a1.sif"
+
 
 references:
   human_kneaddata: "/archive/extra/daniel.remondini2/bioinf_db/databases/kneaddata_human_hg39_T2T_bowtie2_v0.1/database"
   metaphlan:
     db_dir: "/archive/extra/daniel.remondini2/bioinf_db/databases/metaphlan_mpa_vOct22_CHOCOPhlAnSGB_202403/database"
     index: "mpa_vOct22_CHOCOPhlAnSGB_202403"
+  humann_db_sqfs: "/archive/extra/daniel.remondini2/bioinf_db/databases/humann_4.0.0a1/database_gzip.squashfs"
