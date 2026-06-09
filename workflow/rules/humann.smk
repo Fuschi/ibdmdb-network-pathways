@@ -65,7 +65,7 @@ rule prepare_humann_pathabundance_long:
     input:
         expand(WORK + "/humann/{run}_4_pathabundance.tsv", run=RUNS)
     output:
-        long = "results/humann_metabolic_pathway_abundance_long.tsv"
+        long = "results/humann_metabolic_pathway_abundance_long.tsv.gz"
     log:
         "workflow/work/logs/humann/prepare_pathabundance_long.log"
     benchmark:

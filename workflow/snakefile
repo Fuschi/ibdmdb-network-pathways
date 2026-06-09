@@ -25,7 +25,7 @@ rule all:
         "results/kneaddata_summary.tsv",
         "results/metaphlan/metaphlan_species_abundance_matrix.tsv",
         "results/metaphlan/metaphlan_species_taxonomy_matrix.tsv",
-        "results/humann_metabolic_pathway_abundance_long.tsv"
+        "results/humann_metabolic_pathway_abundance_long.tsv.gz"
 
 # -----------------------------------------------------------------------------
 # Rules
