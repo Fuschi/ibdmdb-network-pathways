@@ -7,6 +7,7 @@ editor: source
 ```{r, message=FALSE}
 library(tidyverse)
 library(mgnet)
+library(compositions)
 ```
 
 ```{r}
@@ -95,8 +96,6 @@ ibdm <- ibdm %>%
 ```
 
 ```{r}
-library(compositions)
-
 pca_clr <- prcomp(mgnet::norm(ibdm), center = TRUE, scale. = FALSE)
 ```
 
