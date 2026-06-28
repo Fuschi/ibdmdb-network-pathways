@@ -8,6 +8,7 @@ editor: source
 library(tidyverse)
 library(mgnet)
 library(compositions)
+library(igraph)
 ```
 
 ```{r}
@@ -34,15 +35,28 @@ ibdm <- mgnet(
     column_to_rownames("species"))
 ```
 
+```{r}
+ibdm <- ibdm %>%
+  group_mgnet(host_subject_id) %>%
+  mutate_meta(
+    age_range = max(host_age, na.rm = TRUE) - min(host_age, na.rm = TRUE),
+    host_subject_id_clean = if_else(age_range <= 2,
+                                    as.character(host_subject_id),
+                                    paste0(host_subject_id,
+                                           "_",
+                                           if_else(host_age <= mean(host_age, na.rm = TRUE), "1", "2"))))
+```
+
+
 ```{r, fig.width=15, fig.height=6}
 meta(ibdm, "tbl") %>%
   mutate(sample_id = as.character(sample_id),
-         host_subject_id = as.character(host_subject_id),
+         host_subject_id_clean = as.character(host_subject_id_clean),
          sample_id = fct_reorder(sample_id, raw_pairs, .desc = TRUE)) %>%
   rename(cleaned = clean_pairs,
          trimmed_removed = pairs_removed_by_trim,
          human_removed = pairs_removed_after_trim) %>%
-  select(sample_id, host_subject_id, host_disease, host_sex,
+  select(sample_id, host_subject_id_clean, host_disease, host_sex,
     raw_pairs, cleaned, trimmed_removed, human_removed) %>%
   pivot_longer(cols = c(cleaned, trimmed_removed, human_removed),
                names_to = "read_class", values_to = "read_pairs") %>%
@@ -66,15 +80,44 @@ summary(pull_meta(ibdm, clean_pairs))
 ibdm <- filter_meta(ibdm, clean_pairs >= 1e6) 
 ```
 
+```{r}
+rowSums(rela(ibdm)) %>% enframe(name = "sample_id", value = "sample_sum") %>%
+  ggplot(aes(x = sample_sum)) + geom_histogram(bins = 30) +
+  theme_bw()
+```
+
 
 ```{r, fig.width=9, fig.height=3}
 ibdm %>%
   meta("tbl") %>%
-  group_by(host_subject_id) %>%
+  group_by(host_subject_id_clean) %>%
   mutate(mean_age = mean(host_age)) %>%
   ungroup() %>%
-  mutate(host_subject_id = as.character(host_subject_id)) %>%
-  ggplot(aes(x = host_subject_id, color = host_sex, fill = host_disease)) +
+  mutate(host_subject_id_clean = as.character(host_subject_id_clean)) %>%
+  ggplot(aes(x = host_subject_id_clean, color = host_sex, fill = host_disease)) +
+  geom_bar(linewidth = 1.1, width = 0.6) +
+  geom_text(aes(label = round(mean_age, 1)), stat = "count",
+            vjust = -0.3, size = 3, color = "black") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)) +
+  scale_color_manual(values = c("female" = "#0072B2", "male"   = "#D55E00")) +
+  scale_fill_manual(values = c(
+    "crohns_disease"     = "#F4A6A6", 0.65,
+    "ulcerative_colitis"     = "#A8DADC", 0.65,
+    "control" = "#CDEAC0", 0.65))
+
+```
+
+```{r, fig.width=9, fig.height=3}
+ibdm %>%
+  group_mgnet(host_subject_id_clean) %>%
+  filter_meta(n() >= 10) %>%
+  meta("tbl") %>%
+  group_by(host_subject_id_clean) %>%
+  mutate(mean_age = mean(host_age)) %>%
+  ungroup() %>%
+  mutate(host_subject_id_clean = as.character(host_subject_id_clean)) %>%
+  ggplot(aes(x = host_subject_id_clean, color = host_sex, fill = host_disease)) +
   geom_bar(linewidth = 1.1, width = 0.6) +
   geom_text(aes(label = round(mean_age, 1)), stat = "count",
             vjust = -0.3, size = 3, color = "black") +
@@ -90,24 +133,40 @@ ibdm %>%
 
 ```{r}
 ibdm <- ibdm %>%
+  group_mgnet(host_subject_id_clean) %>%
+  filter_meta(n() >= 10) %>%
+  ungroup_mgnet() %>%
+  filter_taxa(sum(rela) > 0)
+```
+
+
+```{r}
+ibdm <- ibdm %>%
   update_mgnet(norm = zCompositions::cmultRepl(rela, method = "CZM",
                                                z.delete = F, z.warning = 1) %>%
                  vegan::decostand(method = "clr"))
 ```
 
-```{r}
-pca_clr <- prcomp(mgnet::norm(ibdm), center = TRUE, scale. = FALSE)
-```
-
 ```{r, fig.width=10, fig.height=7}
+pca_clr <- prcomp(mgnet::norm(ibdm), center = TRUE, scale. = FALSE)
+
+var_explained <- round(100 * pca_clr$sdev^2 / sum(pca_clr$sdev^2), 1)
+
 pca_clr$x[, 1:2] %>%
   as_tibble(rownames = "sample_id") %>%
   left_join(meta(ibdm, "tbl"), by = "sample_id") %>%
-  mutate(host_subject_id = as.factor(host_subject_id)) %>%
-  ggplot(aes(x = PC1, y = PC2, fill = host_subject_id)) +
+  mutate(host_subject_id_clean = as.factor(host_subject_id_clean)) %>%
+  ggplot(aes(x = PC1, y = PC2, fill = host_subject_id_clean)) +
   geom_point(shape = 21, size = 3) +
+  labs(
+    x = paste0("PC1 (", var_explained[1], "%)"),
+    y = paste0("PC2 (", var_explained[2], "%)"),
+    fill = "Subject"
+  ) +
   theme_bw() +
   ggqualpal::scale_fill_qualpal()
+
+rm(var_explained)
 ```
 
 ```{r}
@@ -115,12 +174,12 @@ dist_adonis <- dist(mgnet::norm(ibdm))
 
 meta_adonis <-meta(ibdm, "tbl") %>%
     mutate(sample_id = as.character(sample_id),
-           host_subject_id = factor(host_subject_id),
+           host_subject_id_clean = factor(host_subject_id_clean),
            host_disease = factor(host_disease),
            host_sex = factor(host_sex),
            host_age = as.numeric(host_age))
 
-adonis_ibdm_subject <- vegan::adonis2(dist_adonis ~ host_subject_id,
+adonis_ibdm_subject <- vegan::adonis2(dist_adonis ~ host_subject_id_clean,
                                       data = meta_adonis,
                                       permutations = 999)
 
@@ -152,9 +211,72 @@ vegan:::RsquareAdj.default(
 ```{r}
 sub_ibdm <- ibdm %>%
   mutate_meta(sample_sum = sum(rela)) %>%
-  split_meta(host_subject_id) %>%
-  filter_taxa((sum(rela > 0) / n()) >= .05,
-              any(rela >= .01)) %>%
+  split_meta(host_subject_id_clean) %>%
+  filter_taxa(sum(rela) > 0) %>%
+  mutate_taxa(sub_prev = sum(rela > 0) / n(),
+              sub_nozero = sum(rela > 0))
+```
+
+```{r, fig.width=12, fig.height=6}
+ggpubr::ggarrange(
+  sub_ibdm %>%
+    mutate_meta(pielou = vegan::diversity(rela) / log(n())) %>%
+    mgnet_longer() %>%
+    ggplot(aes(x = host_subject_id, y = pielou, fill = host_disease)) +
+    geom_boxplot() +
+    theme_bw() +
+    ggqualpal::scale_fill_qualpal(),
+  
+  ntaxa(sub_ibdm) %>%
+    enframe(name = "host", value = "ntaxa") %>%
+    ggplot(aes(x = host, y = ntaxa)) +
+    geom_bar(stat = "identity") +
+    theme_bw() +
+    ggqualpal::scale_fill_qualpal(),
+  
+  ncol = 1, common.legend = T
+)
+
+```
+
+
+```{r, fig.width=12, fig.height=9}
+taxa(sub_ibdm, .collapse = T) %>%
+  ggplot(aes(x = sub_nozero)) +
+  #geom_histogram(color = "darkblue", fill = "lightblue", breaks = seq(0, 1, .1)) +
+  geom_histogram(color = "darkblue", fill = "lightblue", bins = 10) +
+  theme_bw() +
+  facet_wrap(~mgnet, scales = "free")
+```
+
+```{r, fig.width=12, fig.height=9}
+mgnet_longer(sub_ibdm) %>%
+  ggplot(aes(x = rela)) +
+  #geom_histogram(color = "darkblue", fill = "lightblue", breaks = seq(0, 1, .1)) +
+  geom_histogram(color = "darkblue", fill = "lightblue", bins = 30) +
+  theme_bw() +
+  facet_wrap(~mgnet, scales = "free") +
+  scale_x_log10()
+```
+```{r, fig.width=12, fig.height=9}
+mgnet_longer(sub_ibdm) %>%
+  mutate(is_zero = rela == 0) %>%
+  ggplot(aes(x = is_zero, fill = is_zero)) +
+  #geom_histogram(color = "darkblue", fill = "lightblue", breaks = seq(0, 1, .1)) +
+  geom_bar() +
+  theme_bw() +
+  facet_wrap(~mgnet, scales = "free") 
+```
+
+
+```{r}
+sub_ibdm <- ibdm %>%
+  mutate_meta(sample_sum = sum(rela)) %>%
+  split_meta(host_subject_id_clean) %>%
+  group_mgnet(mgnet, taxa_id) %>%
+  filter_taxa((sum(rela > 0) / n()) >= .25,
+              sum(rela > 0) >= 7,
+              any(rela >= .005), .ungroup = T) %>%
   mutate_meta(sample_lost = 1 - (sum(rela) / sample_sum)) %>%
   update_mgnet(norm = zCompositions::cmultRepl(rela, method = "CZM",
                                                z.delete = F, z.warning = 1) %>%
@@ -162,17 +284,363 @@ sub_ibdm <- ibdm %>%
 ```
 
 ```{r}
-sub_ibdm %>% pull_meta(sample_lost) %>% unlist() %>% max()
+sub_ibdm %>% pull_meta(sample_lost) %>% unlist() %>% summary()
+```
+
+```{r}
+sub_ibdm <- sub_ibdm %>%
+  filter_meta(sample_lost <= .25) 
+```
+
+```{r}
+sort(nsample(sub_ibdm))
+```
+
+```{r}
+sort(ntaxa(sub_ibdm))
+```
+
+```{r}
+meta(sub_ibdm, .collapse = T) %>%
+  group_by(host_subject_id_clean) %>%
+  mutate(n_sample = n()) %>%
+  ungroup() %>%
+  select(host_subject_id_clean, host_disease, host_sex, host_age, n_sample) %>%
+  group_by(host_age) %>%
+  mutate(host_age = mean(host_age)) %>%
+  ungroup() %>%
+  distinct() %>%
+  gt::gt()
 ```
 
 
+```{r}
+build_mean_degree_netw <- function(obj,
+                                  target_mean_degree = 3,
+                                  min_abs_cor = 0.30,
+                                  max_abs_cor = 0.99,
+                                  min_sd = 1e-8) {
+  
+  taxa_names <- taxa_id(obj)
+  mat        <- mgnet::norm(obj) |> as.matrix()
+  n_taxa <- ncol(mat)
+  n_samples  <- nrow(mat)
+  taxa_sd    <- apply(mat, 2, sd, na.rm = TRUE)
+  
+  if (any(taxa_sd <= min_sd)) {
+    warning("Some taxa have sd <= min_sd = ", min_sd, ".")
+  }
+  
+  cor_mat <- cor(mat, method = "pearson", use = "pairwise.complete.obs")
+  
+  if (any(abs(cor_mat[upper.tri(cor_mat)]) >= max_abs_cor, na.rm = TRUE)) {
+    warning("Some correlations exceed max_abs_cor = ", max_abs_cor,
+         ". Check the input matrix or lower the threshold.")
+  }
+  
+  n_edges_keep <- round(target_mean_degree * n_taxa / 2)
+  
+  edge_tbl <- cor_mat %>%
+    as_tibble(rownames = "taxon_a") %>%
+    pivot_longer(-taxon_a, names_to = "taxon_b", values_to = "cor") %>%
+    filter(taxon_a < taxon_b) %>%
+    filter(is.finite(cor)) %>%
+    filter(abs(cor) >= min_abs_cor) %>%
+    mutate(
+      fisher_z     = atanh(cor),
+      fisher_score = abs(fisher_z) * sqrt(n_samples - 3),
+      sign         = if_else(cor > 0, "positive", "negative")
+    ) %>%
+    arrange(desc(fisher_score)) %>%
+    slice_head(n = n_edges_keep) %>%
+    select(taxon_a, taxon_b, weight = cor, fisher_z, fisher_score, sign)
+  
+  igraph::graph_from_data_frame(
+    d        = edge_tbl,
+    directed = FALSE,
+    vertices = taxa_names
+  )
+}
+```
+
+```{r}
+netw(sub_ibdm) <- map(sub_ibdm, \(x) build_mean_degree_netw(x, 5))
+sub_ibdm <- update_mgnet(sub_ibdm, comm = netkit::cluster_signed_louvain(netw))
+```
+
+```{r, fig.width=20, fig.height=20, warning=FALSE}
+extreme_pairs <- sapply(netw(sub_ibdm), igraph::as_data_frame, simplify = FALSE) %>%
+  bind_rows(.id = "mgnet") %>%
+  filter(abs(weight) >= 0.95) %>%
+  select(mgnet, taxon_a = from, taxon_b = to, weight)
+
+long <- mgnet_longer(sub_ibdm) %>%
+  select(mgnet, sample_id, taxa_id, rela, norm)
+
+extreme_pairs %>%
+  left_join(long, by = c("mgnet", "taxon_a" = "taxa_id")) %>%
+  rename(rela_a = rela, norm_a = norm) %>%
+  left_join(long, by = c("mgnet", "taxon_b" = "taxa_id", "sample_id")) %>%
+  rename(rela_b = rela, norm_b = norm) %>%
+  mutate(
+    label = paste0(mgnet, "\n",
+                   str_trunc(taxon_a, 25), "\n× ",
+                   str_trunc(taxon_b, 25)),
+    sign  = if_else(weight > 0, "positive", "negative"),
+    zero_status = case_when(
+      rela_a == 0 & rela_b == 0 ~ "both zero",
+      rela_a == 0 | rela_b == 0 ~ "one zero",
+      TRUE                       ~ "both non-zero"
+    )
+  ) %>%
+  ggplot(aes(x = norm_a, y = norm_b, color = zero_status)) +
+  geom_point(size = 2) +
+  geom_smooth(method = "lm", se = FALSE, linewidth = 0.7, color = "grey40") +
+  facet_wrap(~ label, scales = "free", ncol = 4) +
+  scale_color_manual(values = c(
+    "both non-zero" = "#E74C3C",
+    "one zero"      = "#F39C12",
+    "both zero"     = "#BDC3C7"
+  )) +
+  labs(x = "Relative abundance taxon A",
+       y = "Relative abundance taxon B",
+       color = NULL) +
+  theme_bw() +
+  theme(strip.text = element_text(size = 7))
+```
+
+```{r, fig.width=12, fig.height=12}
+library(ggraph)
+library(tidygraph)
+library(patchwork)
+
+plot_network <- function(g, com, subj, min_comm_size = 3) {
+  
+  membership <- igraph::membership(com)
+  sizes      <- igraph::sizes(com)
+  
+  # Nodi in comunità piccole → "other"
+  comm_label <- ifelse(sizes[membership] >= min_comm_size,
+                       as.character(membership),
+                       "other")
+  
+  tg <- as_tbl_graph(g) %>%
+    activate(nodes) %>%
+    mutate(
+      community = comm_label,
+      degree    = centrality_degree()
+    ) %>%
+    activate(edges) %>%
+    mutate(sign = if_else(weight > 0, "positive", "negative"))
+  
+  # Layout FR solo sugli archi positivi (stessa logica di netkit::layout_signed)
+  lay <- g %>%
+    igraph::delete_edges(which(igraph::E(.)$weight <= 0)) %>%
+    igraph::layout_with_fr()
+  
+  ggraph(tg, layout = lay) +
+    geom_edge_link(
+      aes(color = sign, alpha = abs(weight)),
+      width = 0.5, show.legend = FALSE
+    ) +
+    geom_node_point(
+      aes(fill = community, size = (colMeans(sub_ibdm[[subj]]@norm) - 
+        quantile(colMeans(sub_ibdm[[subj]]@norm), .9))^2 ),
+      shape = 21, color = "white", stroke = 0.3
+    ) +
+    scale_edge_color_manual(
+      values = c("positive" = "#3498DB", "negative" = "#E74C3C")
+    ) +
+    scale_edge_alpha(range = c(0.2, 0.8)) +
+    scale_size(range = c(1, 5), guide = "none") +
+    labs(title = subj) +
+    theme_graph() +
+    theme(
+      legend.position = "none",
+      plot.title      = element_text(size = 9, face = "bold", hjust = 0.5)
+    )
+}
+
+# Un plot per soggetto
+plots <- map(names(sub_ibdm), function(s) {
+  plot_network(
+    g     = netw(sub_ibdm[[s]]),
+    com   = comm(sub_ibdm[[s]]),
+    subj  = s
+  )
+})
+names(plots) <- names(sub_ibdm)
+```
 
 
+```{r, fig.width=12, fig.height=12}
+# Tutti insieme
+wrap_plots(plots, ncol = 5)
+```
 
+```{r}
+library(tidyverse)
+library(uwot)
+library(lme4)
+library(broom.mixed)
 
+# =============================================================================
+# 1. TABELLE DI SUPPORTO
+# =============================================================================
 
+# membership: soggetto × taxon → community id
+comm_tbl <- map_dfr(names(sub_ibdm), function(s) {
+  tibble(
+    host_subject_id_clean = s,
+    taxa_id   = taxa_id(sub_ibdm[[s]]),
+    community = as.integer(igraph::membership(comm(sub_ibdm[[s]])))
+  )
+})
 
+# dimensione di ogni comunità
+comm_sizes <- map_dfr(names(sub_ibdm), function(s) {
+  sz <- igraph::sizes(comm(sub_ibdm[[s]]))
+  tibble(
+    host_subject_id_clean = s,
+    community = as.integer(names(sz)),
+    comm_size = as.integer(sz)
+  )
+})
 
+# run → soggetto e disease
+run_meta <- meta(sub_ibdm, .collapse = TRUE) %>%
+  select(run_accession = sample_id, host_subject_id_clean, host_disease) %>%
+  distinct()
 
+subject_meta <- run_meta %>%
+  select(host_subject_id_clean, host_disease) %>%
+  distinct()
 
+# =============================================================================
+# 2. CONTRIBUTO RELATIVO DI OGNI COMUNITÀ PER PATHWAY
+# =============================================================================
+
+# carica HUMAnN, filtra a righe stratificate per pathway
+humann <- read_tsv(
+  "../../results/humann_metabolic_pathway_abundance_long.tsv.gz",
+  show_col_types = FALSE
+) %>%
+  filter(is_stratified, is_pathway,
+         !is.na(species), species != "unclassified") %>%
+  mutate(taxa_id = str_replace_all(species, " ", "_")) %>%
+  rename(run_accession = run)
+
+# per ogni (campione, community, pathway): somma contributi dei taxa nella comunità
+# poi calcola il contributo relativo di ogni comunità su quel pathway nel campione
+pathway_by_comm <- humann %>%
+  inner_join(run_meta, by = "run_accession") %>%
+  inner_join(comm_tbl, by = c("host_subject_id_clean", "taxa_id")) %>%
+  group_by(host_subject_id_clean, run_accession, community, pathway_id, pathway_name) %>%
+  summarise(abundance = sum(abundance, na.rm = TRUE), .groups = "drop") %>%
+  group_by(host_subject_id_clean, run_accession, pathway_id, pathway_name) %>%
+  mutate(relative = abundance / sum(abundance)) %>%
+  ungroup()
+
+# media del contributo relativo sui campioni: profilo per (soggetto, community, pathway)
+pathway_comm_profile <- pathway_by_comm %>%
+  group_by(host_subject_id_clean, community, pathway_id, pathway_name) %>%
+  summarise(mean_relative = mean(relative, na.rm = TRUE), .groups = "drop")
+
+# =============================================================================
+# 3. MATRICE COMUNITÀ × PATHWAY (solo comunità >= min_comm_size)
+# =============================================================================
+
+min_comm_size <- 5
+
+pathway_mat <- pathway_comm_profile %>%
+  left_join(comm_sizes, by = c("host_subject_id_clean", "community")) %>%
+  filter(comm_size >= min_comm_size) %>%
+  mutate(row_label = paste0(host_subject_id_clean, "||", community)) %>%
+  select(row_label, pathway_id, mean_relative) %>%
+  pivot_wider(names_from = pathway_id, values_from = mean_relative, values_fill = 0) %>%
+  column_to_rownames("row_label")
+
+# =============================================================================
+# 4. RIDUZIONE DIMENSIONALE (UMAP)
+# =============================================================================
+
+set.seed(42)
+umap_res <- uwot::umap(pathway_mat, n_neighbors = 10,
+                       min_dist = 0.1, metric = "cosine")
+
+umap_tbl <- as_tibble(umap_res) %>%
+  rename(x = V1, y = V2) %>%
+  mutate(row_label = rownames(pathway_mat)) %>%
+  separate(row_label, into = c("host_subject_id_clean", "community"),
+           sep = "\\|\\|") %>%
+  mutate(community = as.integer(community)) %>%
+  left_join(comm_sizes,   by = c("host_subject_id_clean", "community")) %>%
+  left_join(subject_meta, by = "host_subject_id_clean")
+
+# =============================================================================
+# 5. CLUSTERING IN ARCHETIPI
+# =============================================================================
+
+K <- 6
+
+dist_mat    <- proxy::dist(pathway_mat, method = "cosine")
+hclust_res  <- hclust(dist_mat, method = "ward.D2")
+archetypes  <- cutree(hclust_res, k = K)
+
+umap_tbl <- umap_tbl %>%
+  mutate(archetype = as.factor(archetypes[paste0(host_subject_id_clean, "||", community)]))
+
+# =============================================================================
+# 6. ASSOCIAZIONE ARCHETIPO × MALATTIA
+# =============================================================================
+
+arch_disease <- umap_tbl %>%
+  count(archetype, host_disease) %>%
+  group_by(archetype) %>%
+  mutate(pct = n / sum(n))
+
+# test chi-quadro globale
+arch_disease %>%
+  select(archetype, host_disease, n) %>%
+  pivot_wider(names_from = host_disease, values_from = n, values_fill = 0) %>%
+  column_to_rownames("archetype") %>%
+  chisq.test()
+
+# composizione di ogni archetipo per malattia
+ggplot(arch_disease, aes(x = archetype, y = pct, fill = host_disease)) +
+  geom_col() +
+  scale_fill_manual(values = c(
+    "crohns_disease"     = "#E74C3C",
+    "ulcerative_colitis" = "#2980B9",
+    "control"            = "#27AE60"
+  )) +
+  scale_y_continuous(labels = scales::percent) +
+  labs(x = "Archetype", y = NULL, fill = "Disease") +
+  theme_bw()
+
+# =============================================================================
+# 7. PATHWAY ASSOCIATI ALLA MALATTIA (modello misto per archetipo)
+# =============================================================================
+
+pathway_arch <- pathway_comm_profile %>%
+  mutate(community = as.integer(community),
+         row_label = paste0(host_subject_id_clean, "||", community),
+         archetype = as.factor(archetypes[row_label])) %>%
+  left_join(subject_meta, by = "host_subject_id_clean")
+
+# per ogni pathway: effetto malattia controllando il soggetto
+results <- pathway_arch %>%
+  group_by(pathway_id, pathway_name) %>%
+  group_modify(~ {
+    tryCatch(
+      lmer(mean_relative ~ host_disease + (1 | host_subject_id_clean), data = .x) %>%
+        tidy(effects = "fixed") %>%
+        filter(str_detect(term, "host_disease")),
+      error = function(e) tibble()
+    )
+  }) %>%
+  ungroup() %>%
+  mutate(p_adj = p.adjust(p.value, method = "BH")) %>%
+  arrange(p_adj)
+```
 
